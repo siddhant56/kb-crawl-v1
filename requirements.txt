@@ -1,0 +1,56 @@
+# Environment & Core Utils
+python-dotenv==1.2.1
+requests==2.32.5
+psutil==7.2.2
+tqdm==4.67.3
+speedtest-cli==2.1.3
+feedparser==6.0.12
+pydub==0.25.1
+beautifulsoup4==4.14.3
+
+# Data Science & Math
+numpy==2.0.2
+pandas==2.3.3
+scipy==1.13.1
+scikit-learn==1.6.1
+matplotlib==3.9.4
+plotly==6.7.0
+
+# Deep Learning Models
+torch==2.8.0
+transformers==4.57.6
+sentence-transformers==5.1.2
+datasets==3.6.0
+
+# LLM Providers & Tooling
+openai==2.37.0
+google-generativeai==0.8.6
+anthropic==0.102.0
+ollama==0.6.2
+modal==1.2.6
+wandb==0.25.0
+
+# Vector DB & Embeddings
+chromadb==1.5.9
+protobuf==3.20.2
+
+# LangChain Ecosystem
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-text-splitters==0.3.11
+langchain-openai==0.3.35
+langchain-chroma==0.2.6
+langchain-community==0.3.31
+
+# Server & UI Apps
+# Pydantic explicitly pinned below 2.9 to maintain compatibility with Gradio 4.44.1 json schema generation
+pydantic==2.8.2
+gradio==4.44.1
+fastapi==0.128.8
+uvicorn==0.39.0
+apscheduler==3.11.2
+
+# Notebooks
+ipykernel==6.31.0
+ipywidgets==8.1.8
+jupyter-dash==0.4.2
