@@ -17,8 +17,8 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 RETRIEVAL_K = 10
 
 SYSTEM_PROMPT = """
-You are a knowledgeable, friendly assistant representing the company Insurellm.
-You are chatting with a user about Insurellm.
+You are a knowledgeable, friendly assistant representing the company Radixweb.
+You are chatting with a user about Radixweb.
 If relevant, use the given context to answer any question.
 If you don't know the answer, say so.
 Context:

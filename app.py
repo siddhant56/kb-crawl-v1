@@ -28,8 +28,8 @@ def build_app():
 
     theme = gr.themes.Soft(font=["Inter", "system-ui", "sans-serif"])
 
-    with gr.Blocks(title="Insurellm Expert Assistant", theme=theme) as ui:
-        gr.Markdown("# 🏢 Insurellm Expert Assistant\nAsk me anything about Insurellm!")
+    with gr.Blocks(title="Radixweb Expert Assistant", theme=theme) as ui:
+        gr.Markdown("# Radixweb Expert Assistant\nAsk me anything about Radixweb!")
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -38,7 +38,7 @@ def build_app():
                 )
                 message = gr.Textbox(
                     label="Your Question",
-                    placeholder="Ask anything about Insurellm...",
+                    placeholder="Ask anything about Radixweb...",
                     show_label=False,
                 )
 

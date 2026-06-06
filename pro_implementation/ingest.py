@@ -74,7 +74,7 @@ def make_prompt(document):
     return f"""
 You take a document and you split the document into overlapping chunks for a KnowledgeBase.
 
-The document is from the shared drive of a company called Insurellm.
+The document is from the knowledge base of a company called Radixweb.
 The document is of type: {document["type"]}
 The document has been retrieved from: {document["source"]}
 
