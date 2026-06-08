@@ -1,124 +1,90 @@
+import pickle
 from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
 from chromadb import PersistentClient
 from tqdm import tqdm
-from litellm import completion
-from multiprocessing import Pool
-from tenacity import retry, wait_exponential
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 load_dotenv(override=True)
 
-MODEL = "openai/gpt-4.1-nano"
-
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
+BM25_PATH = Path(__file__).parent.parent / "bm25_index.pkl"
 collection_name = "docs"
-embedding_model = "text-embedding-3-large"
+# text-embedding-3-small is 5x cheaper than large with competitive quality
+embedding_model = "text-embedding-3-small"
 KNOWLEDGE_BASE_PATH = Path(__file__).parent.parent / "knowledge-base"
-AVERAGE_CHUNK_SIZE = 100
-wait = wait_exponential(multiplier=1, min=10, max=240)
-
-
-WORKERS = 3
 
 openai = OpenAI()
 
-
-class Result(BaseModel):
-    page_content: str
-    metadata: dict
-
-
-class Chunk(BaseModel):
-    headline: str = Field(
-        description="A brief heading for this chunk, typically a few words, that is most likely to be surfaced in a query",
-    )
-    summary: str = Field(
-        description="A few sentences summarizing the content of this chunk to answer common questions"
-    )
-    original_text: str = Field(
-        description="The original text of this chunk from the provided document, exactly as is, not changed in any way"
-    )
-
-    def as_result(self, document):
-        metadata = {"source": document["source"], "type": document["type"]}
-        return Result(
-            page_content=self.headline + "\n\n" + self.summary + "\n\n" + self.original_text,
-            metadata=metadata,
-        )
-
-
-class Chunks(BaseModel):
-    chunks: list[Chunk]
+HEADERS_TO_SPLIT = [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4")]
+md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=HEADERS_TO_SPLIT)
+char_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=150)
 
 
 def fetch_documents():
-    """A homemade version of the LangChain DirectoryLoader"""
-
     documents = []
-
     for folder in KNOWLEDGE_BASE_PATH.iterdir():
+        if not folder.is_dir():
+            continue
         doc_type = folder.name
         for file in folder.rglob("*.md"):
             with open(file, "r", encoding="utf-8") as f:
                 documents.append({"type": doc_type, "source": file.as_posix(), "text": f.read()})
-
     print(f"Loaded {len(documents)} documents")
     return documents
 
 
-def make_prompt(document):
-    how_many = (len(document["text"]) // AVERAGE_CHUNK_SIZE) + 1
-    return f"""
-You take a document and you split the document into overlapping chunks for a KnowledgeBase.
+def chunk_document(document):
+    try:
+        header_splits = md_splitter.split_text(document["text"])
+    except Exception:
+        header_splits = []
 
-The document is from the knowledge base of a company called Radixweb.
-The document is of type: {document["type"]}
-The document has been retrieved from: {document["source"]}
+    chunks = []
+    for split in header_splits:
+        # Prepend breadcrumb so each chunk carries its section context
+        breadcrumb = " > ".join(v for v in split.metadata.values() if v)
+        for text in char_splitter.split_text(split.page_content):
+            text = text.strip()
+            if len(text) < 40:
+                continue
+            full_text = f"{breadcrumb}\n\n{text}" if breadcrumb else text
+            chunks.append({
+                "page_content": full_text,
+                "metadata": {"source": document["source"], "type": document["type"]},
+            })
 
-A chatbot will use these chunks to answer questions about the company.
-You should divide up the document as you see fit, being sure that the entire document is returned across the chunks - don't leave anything out.
-This document should probably be split into at least {how_many} chunks, but you can have more or less as appropriate, ensuring that there are individual chunks to answer specific questions.
-There should be overlap between the chunks as appropriate; typically about 25% overlap or about 50 words, so you have the same text in multiple chunks for best retrieval results.
-
-For each chunk, you should provide a headline, a summary, and the original text of the chunk.
-Together your chunks should represent the entire document with overlap.
-
-Here is the document:
-
-{document["text"]}
-
-Respond with the chunks.
-"""
-
-
-def make_messages(document):
-    return [
-        {"role": "user", "content": make_prompt(document)},
-    ]
-
-
-@retry(wait=wait)
-def process_document(document):
-    messages = make_messages(document)
-    response = completion(model=MODEL, messages=messages, response_format=Chunks)
-    reply = response.choices[0].message.content
-    doc_as_chunks = Chunks.model_validate_json(reply).chunks
-    return [chunk.as_result(document) for chunk in doc_as_chunks]
+    # Fallback for docs with no headers
+    if not chunks:
+        for text in char_splitter.split_text(document["text"]):
+            text = text.strip()
+            if len(text) >= 40:
+                chunks.append({
+                    "page_content": text,
+                    "metadata": {"source": document["source"], "type": document["type"]},
+                })
+    return chunks
 
 
 def create_chunks(documents):
-    """
-    Create chunks using a number of workers in parallel.
-    If you get a rate limit error, set the WORKERS to 1.
-    """
-    chunks = []
-    with Pool(processes=WORKERS) as pool:
-        for result in tqdm(pool.imap_unordered(process_document, documents), total=len(documents)):
-            chunks.extend(result)
-    return chunks
+    all_chunks = []
+    for doc in tqdm(documents, desc="Chunking"):
+        all_chunks.extend(chunk_document(doc))
+    print(f"Created {len(all_chunks)} chunks")
+    return all_chunks
+
+
+def embed_in_batches(texts, batch_size=500):
+    """OpenAI allows up to 2048 inputs per call; 500 is safe and fast."""
+    all_vectors = []
+    for i in tqdm(range(0, len(texts), batch_size), desc="Embedding"):
+        batch = texts[i : i + batch_size]
+        response = openai.embeddings.create(model=embedding_model, input=batch)
+        all_vectors.extend(e.embedding for e in response.data)
+    return all_vectors
 
 
 def create_embeddings(chunks):
@@ -126,17 +92,31 @@ def create_embeddings(chunks):
     if collection_name in [c.name for c in chroma.list_collections()]:
         chroma.delete_collection(collection_name)
 
-    texts = [chunk.page_content for chunk in chunks]
-    emb = openai.embeddings.create(model=embedding_model, input=texts).data
-    vectors = [e.embedding for e in emb]
+    texts = [c["page_content"] for c in chunks]
+    metas = [c["metadata"] for c in chunks]
+    ids = [str(i) for i in range(len(chunks))]
 
+    vectors = embed_in_batches(texts)
     collection = chroma.get_or_create_collection(collection_name)
 
-    ids = [str(i) for i in range(len(chunks))]
-    metas = [chunk.metadata for chunk in chunks]
-
-    collection.add(ids=ids, embeddings=vectors, documents=texts, metadatas=metas)
+    # ChromaDB hard limit is 5461 per add call
+    chroma_batch = 5000
+    for i in tqdm(range(0, len(chunks), chroma_batch), desc="Storing"):
+        collection.add(
+            ids=ids[i : i + chroma_batch],
+            embeddings=vectors[i : i + chroma_batch],
+            documents=texts[i : i + chroma_batch],
+            metadatas=metas[i : i + chroma_batch],
+        )
     print(f"Vectorstore created with {collection.count()} documents")
+
+    # Build TF-IDF lexical index for hybrid retrieval (BM25-style exact-term matching)
+    # sublinear_tf approximates BM25 term saturation; bigrams catch product names
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True)
+    matrix = vectorizer.fit_transform(texts)
+    with open(BM25_PATH, "wb") as f:
+        pickle.dump({"vectorizer": vectorizer, "matrix": matrix, "texts": texts, "metadatas": metas}, f)
+    print(f"TF-IDF index saved ({BM25_PATH.name})")
 
 
 if __name__ == "__main__":
