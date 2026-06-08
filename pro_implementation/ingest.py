@@ -118,6 +118,9 @@ def create_embeddings(chunks):
         pickle.dump({"vectorizer": vectorizer, "matrix": matrix, "texts": texts, "metadatas": metas}, f)
     print(f"TF-IDF index saved ({BM25_PATH.name})")
 
+    from pro_implementation.answer import reload_bm25
+    reload_bm25()
+
 
 if __name__ == "__main__":
     documents = fetch_documents()

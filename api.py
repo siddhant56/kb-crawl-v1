@@ -20,7 +20,8 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Security
+from fastapi.security import APIKeyHeader
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -30,23 +31,51 @@ from scraper import run_full_crawl, scrape_state, scrape_lock
 KNOWLEDGE_BASE_PATH = Path(__file__).parent / "knowledge-base"
 
 # ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+
+def _require_api_key(key: str = Security(_api_key_header)) -> None:
+    expected = os.environ.get("ADMIN_API_KEY", "")
+    if not expected or key != expected:
+        raise HTTPException(status_code=403, detail="Invalid API key.")
+
+
+# ---------------------------------------------------------------------------
 # Ingestion helpers
 # ---------------------------------------------------------------------------
 
 ingest_lock = threading.Lock()
 
 
+def _ingestion_body() -> None:
+    """Core ingest logic — caller must hold ingest_lock."""
+    print("Starting ingestion pipeline...")
+    documents = fetch_documents()
+    chunks = create_chunks(documents)
+    create_embeddings(chunks)
+    print("Ingestion complete.")
+
+
+def _run_ingestion_and_release() -> None:
+    """Background task: run ingestion then release the lock acquired by the endpoint."""
+    try:
+        _ingestion_body()
+    except Exception as exc:
+        print(f"Ingestion error: {exc}")
+    finally:
+        ingest_lock.release()
+
+
 def perform_ingestion() -> bool:
-    """Run the full pro_implementation ingest pipeline. Thread-safe."""
+    """Run ingestion with its own lock acquire — used by the scheduler."""
     if not ingest_lock.acquire(blocking=False):
         print("Ingestion already running — skipping.")
         return False
     try:
-        print("Starting ingestion pipeline...")
-        documents = fetch_documents()
-        chunks = create_chunks(documents)
-        create_embeddings(chunks)
-        print("Ingestion complete.")
+        _ingestion_body()
         return True
     except Exception as exc:
         print(f"Ingestion error: {exc}")
@@ -112,6 +141,7 @@ async def start_scrape(
     background_tasks: BackgroundTasks,
     max_pages: int = 10000,
     workers: int = 3,
+    _: None = Depends(_require_api_key),
 ):
     if scrape_lock.locked():
         raise HTTPException(status_code=409, detail="Scrape already in progress.")
@@ -179,10 +209,13 @@ async def get_categories():
     ),
     tags=["Ingestion"],
 )
-async def trigger_ingestion(background_tasks: BackgroundTasks):
-    if ingest_lock.locked():
+async def trigger_ingestion(
+    background_tasks: BackgroundTasks,
+    _: None = Depends(_require_api_key),
+):
+    if not ingest_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Ingestion already running.")
-    background_tasks.add_task(perform_ingestion)
+    background_tasks.add_task(_run_ingestion_and_release)
     return {"message": "Ingestion started in background."}
 
 
@@ -201,12 +234,12 @@ async def get_ingest_status():
 # ---------------------------------------------------------------------------
 
 async def _pipeline(max_pages: int, workers: int):
-    """Scrape then ingest — runs sequentially inside a background task."""
+    """Scrape then ingest — runs sequentially inside a background task.
+    Caller must have already acquired ingest_lock before scheduling this task."""
     print("=== Pipeline: starting scrape ===")
     await run_full_crawl(max_pages, workers)
     print("=== Pipeline: scrape done, starting ingest ===")
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, perform_ingestion)
+    await asyncio.get_running_loop().run_in_executor(None, _run_ingestion_and_release)
     print("=== Pipeline: ingest done ===")
 
 
@@ -225,10 +258,11 @@ async def run_pipeline(
     background_tasks: BackgroundTasks,
     max_pages: int = 10000,
     workers: int = 3,
+    _: None = Depends(_require_api_key),
 ):
     if scrape_lock.locked():
         raise HTTPException(status_code=409, detail="Scrape already in progress.")
-    if ingest_lock.locked():
+    if not ingest_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Ingestion already in progress.")
     background_tasks.add_task(_pipeline, max_pages, workers)
     return {
@@ -241,11 +275,21 @@ async def run_pipeline(
 
 
 # ---------------------------------------------------------------------------
-# Mount Gradio UI
+# Mount Gradio UI (PRO pipeline)
 # ---------------------------------------------------------------------------
 
 import gradio as gr
-from app import build_app
+from pro_implementation.answer import answer_question as _answer_question
 
-gradio_ui = build_app()
+
+def _chat(message: str, history: list) -> str:
+    answer, _ = _answer_question(message, history)
+    return answer
+
+
+gradio_ui = gr.ChatInterface(
+    fn=_chat,
+    title="Radixweb Expert Assistant",
+    description="Hybrid RAG · BM25 + Semantic · Local Reranker",
+)
 app = gr.mount_gradio_app(app, gradio_ui, path="/")

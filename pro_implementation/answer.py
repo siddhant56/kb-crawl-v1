@@ -28,14 +28,22 @@ RRF_K = 60         # standard Reciprocal Rank Fusion constant
 
 openai = OpenAI()
 chroma = PersistentClient(path=DB_NAME)
-collection = chroma.get_or_create_collection(collection_name)
 
-with open(BM25_PATH, "rb") as f:
-    _idx = pickle.load(f)
-_tfidf_vectorizer = _idx["vectorizer"]
-_tfidf_matrix = _idx["matrix"]
-_tfidf_texts = _idx["texts"]
-_tfidf_metas = _idx["metadatas"]
+# BM25 index — loaded lazily; absent on a fresh deploy before first ingestion
+_tfidf_vectorizer = None
+_tfidf_matrix = None
+_tfidf_texts: list = []
+_tfidf_metas: list = []
+
+if BM25_PATH.exists():
+    with open(BM25_PATH, "rb") as f:
+        _idx = pickle.load(f)
+    _tfidf_vectorizer = _idx["vectorizer"]
+    _tfidf_matrix = _idx["matrix"]
+    _tfidf_texts = _idx["texts"]
+    _tfidf_metas = _idx["metadatas"]
+else:
+    print(f"[answer] BM25 index not found at {BM25_PATH} — TF-IDF retrieval disabled until first ingestion.")
 
 # Use MPS on Apple Silicon if available, otherwise CPU
 import torch
@@ -86,9 +94,25 @@ def rrf_merge(ranked_lists: list[list[Result]]) -> list[Result]:
     return sorted(items.values(), key=lambda x: scores[x.page_content], reverse=True)
 
 
+def reload_bm25() -> None:
+    """Reload the TF-IDF index from disk — called by ingest.py after writing a new index."""
+    global _tfidf_vectorizer, _tfidf_matrix, _tfidf_texts, _tfidf_metas
+    if not BM25_PATH.exists():
+        return
+    with open(BM25_PATH, "rb") as f:
+        _idx = pickle.load(f)
+    _tfidf_vectorizer = _idx["vectorizer"]
+    _tfidf_matrix = _idx["matrix"]
+    _tfidf_texts = _idx["texts"]
+    _tfidf_metas = _idx["metadatas"]
+    print("[answer] BM25 index reloaded.")
+
+
 def fetch_vector_results(query_text: str, n: int = RETRIEVAL_K) -> list[Result]:
     query_vec = openai.embeddings.create(model=embedding_model, input=[query_text]).data[0].embedding
-    results = collection.query(query_embeddings=[query_vec], n_results=n)
+    # Fetch the collection fresh each time so re-ingestion never leaves a stale reference
+    col = chroma.get_or_create_collection(collection_name)
+    results = col.query(query_embeddings=[query_vec], n_results=n)
     return [
         Result(page_content=doc, metadata=meta)
         for doc, meta in zip(results["documents"][0], results["metadatas"][0])
@@ -96,6 +120,8 @@ def fetch_vector_results(query_text: str, n: int = RETRIEVAL_K) -> list[Result]:
 
 
 def fetch_tfidf_results(query_text: str, n: int = RETRIEVAL_K) -> list[Result]:
+    if _tfidf_vectorizer is None:
+        return []
     query_vec = _tfidf_vectorizer.transform([query_text])
     sims = cosine_similarity(query_vec, _tfidf_matrix).flatten()
     top_indices = np.argsort(sims)[::-1][:n]
