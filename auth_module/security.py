@@ -38,6 +38,7 @@ def create_access_token(
     role: str,
     email: str,
     status: str,
+    upload_access: bool = False,
 ) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(
@@ -48,6 +49,7 @@ def create_access_token(
         "role": role,
         "email": email,
         "status": status,
+        "upload_access": upload_access,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }

@@ -168,6 +168,63 @@ def revoke_user(
 
 
 # ---------------------------------------------------------------------------
+# Upload access endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.patch(
+    "/users/{user_id}/grant-upload",
+    response_model=UserAdmin,
+    summary="Grant document upload access",
+    description=(
+        "Enables document upload permission for an approved user. "
+        "The user must already have `approved` status. "
+        "Cannot be applied to yourself."
+    ),
+)
+def grant_upload_access(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+) -> User:
+    user = _get_or_404(db, user_id)
+    _guard_self(user, admin, "modify upload access for")
+    _guard_is_super_admin(user)
+    if user.status != UserStatus.APPROVED:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload access can only be granted to approved users.",
+        )
+    user.upload_access = True
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch(
+    "/users/{user_id}/revoke-upload",
+    response_model=UserAdmin,
+    summary="Revoke document upload access",
+    description=(
+        "Removes document upload permission from a user. "
+        "Cannot be applied to yourself."
+    ),
+)
+def revoke_upload_access(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_super_admin),
+) -> User:
+    user = _get_or_404(db, user_id)
+    _guard_self(user, admin, "modify upload access for")
+    _guard_is_super_admin(user)
+    user.upload_access = False
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# ---------------------------------------------------------------------------
 # Role and deletion endpoints
 # ---------------------------------------------------------------------------
 

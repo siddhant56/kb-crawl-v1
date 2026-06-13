@@ -146,17 +146,24 @@ function UserRow({
         </div>
       </td>
 
-      {/* Role */}
+      {/* Role + upload badge */}
       <td className="px-4 py-3">
-        <span
-          className={`text-xs font-medium px-2 py-0.5 rounded ${
-            user.role === "super_admin"
-              ? "bg-purple-100 text-purple-800"
-              : "bg-gray-100 text-gray-700"
-          }`}
-        >
-          {user.role === "super_admin" ? "Super Admin" : "User"}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span
+            className={`text-xs font-medium px-2 py-0.5 rounded w-fit ${
+              user.role === "super_admin"
+                ? "bg-purple-100 text-purple-800"
+                : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            {user.role === "super_admin" ? "Super Admin" : "User"}
+          </span>
+          {user.upload_access && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded w-fit bg-emerald-100 text-emerald-800">
+              Upload
+            </span>
+          )}
+        </div>
       </td>
 
       {/* Status */}
@@ -218,6 +225,22 @@ function UserRow({
                 className="text-xs border border-gray-300 hover:bg-gray-50 text-gray-600 px-2.5 py-1 rounded-lg font-medium transition-colors"
               >
                 Remove Admin
+              </button>
+            )}
+            {user.status === "approved" && user.role !== "super_admin" && !user.upload_access && (
+              <button
+                onClick={() => onAction("grant-upload", user)}
+                className="text-xs border border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-medium transition-colors"
+              >
+                Grant Upload
+              </button>
+            )}
+            {user.status === "approved" && user.role !== "super_admin" && user.upload_access && (
+              <button
+                onClick={() => onAction("revoke-upload", user)}
+                className="text-xs border border-orange-300 hover:bg-orange-50 text-orange-700 px-2.5 py-1 rounded-lg font-medium transition-colors"
+              >
+                Revoke Upload
               </button>
             )}
             {(user.status === "denied" || user.status === "revoked") && user.role !== "super_admin" && (
@@ -291,6 +314,12 @@ export default function AdminPage() {
         break;
       case "demote":
         result = await adminApi.changeRole(user.id, "user");
+        break;
+      case "grant-upload":
+        result = await adminApi.grantUpload(user.id);
+        break;
+      case "revoke-upload":
+        result = await adminApi.revokeUpload(user.id);
         break;
       case "delete":
         if (!confirm(`Permanently delete ${user.full_name}? This cannot be undone.`)) return;

@@ -68,6 +68,19 @@ def require_approved(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_upload_access(user: User = Depends(require_approved)) -> User:
+    """Extend require_approved: also require upload_access == True.
+
+    Raises 403 if the user is approved but has not been granted upload access.
+    """
+    if not user.upload_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Upload access not granted. Contact the super admin to request document upload permissions.",
+        )
+    return user
+
+
 def require_super_admin(user: User = Depends(get_current_user)) -> User:
     """Extend get_current_user: require role == SUPER_ADMIN and status == APPROVED.
 

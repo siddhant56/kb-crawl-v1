@@ -11,7 +11,7 @@ users   – all registered accounts (users and super admins)
 import enum
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -46,3 +46,6 @@ class User(Base):
 
     # Populated when status changes to DENIED
     denial_reason = Column(String(500), nullable=True)
+
+    # Document upload permission — granted independently by a super admin
+    upload_access = Column(Boolean, nullable=False, default=False)

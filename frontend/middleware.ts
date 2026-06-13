@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/logout"];
+const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/upload/categories"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -41,8 +41,9 @@ export async function middleware(request: NextRequest) {
       new TextEncoder().encode(secret)
     );
 
-    const status = payload.status as string;
+    const userStatus = payload.status as string;
     const role = payload.role as string;
+    const uploadAccess = payload.upload_access as boolean | undefined;
 
     // /api/auth/me and /api/chat and /api/admin/* need auth — already checked above
     // For page routes, enforce business rules:
@@ -50,8 +51,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/chat", request.url));
     }
 
-    if ((pathname.startsWith("/chat") || pathname.startsWith("/admin")) && status !== "approved") {
+    if (
+      (pathname.startsWith("/chat") || pathname.startsWith("/admin") || pathname.startsWith("/upload")) &&
+      userStatus !== "approved"
+    ) {
       return NextResponse.redirect(new URL("/pending", request.url));
+    }
+
+    if (pathname.startsWith("/upload") && !uploadAccess) {
+      return NextResponse.redirect(new URL("/chat", request.url));
     }
 
     return NextResponse.next();
