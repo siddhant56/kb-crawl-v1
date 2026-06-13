@@ -25,11 +25,13 @@ from auth_module.gradio_auth import gradio_auth
 from auth_module.routers.admin import router as admin_router
 from auth_module.routers.auth import router as auth_router
 from auth_module.routers.chat import router as chat_router
+from auth_module.routers.upload import router as upload_router
 
 __all__ = [
     "auth_router",
     "admin_router",
     "chat_router",
+    "upload_router",
     "create_tables",
     "gradio_auth",
 ]

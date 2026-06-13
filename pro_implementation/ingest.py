@@ -1,4 +1,6 @@
+import hashlib
 import pickle
+import threading
 from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -120,6 +122,84 @@ def create_embeddings(chunks):
 
     from pro_implementation.answer import reload_bm25
     reload_bm25()
+
+
+_bm25_lock = threading.Lock()
+
+
+def _stable_chunk_id(source: str, chunk_index: int, text: str) -> str:
+    """Deterministic ID based on source path + position + content hash.
+    Stable across re-uploads so upsert replaces rather than duplicates."""
+    digest = hashlib.sha256(f"{source}:{chunk_index}:{text[:200]}".encode()).hexdigest()[:16]
+    return f"upload:{digest}"
+
+
+def append_document(document: dict) -> dict:
+    """Incrementally add a single document to ChromaDB and update the TF-IDF index.
+
+    Existing chunks for the same `source` path are removed first (overwrite semantics).
+
+    Parameters
+    ----------
+    document : dict
+        {"type": str, "source": str, "text": str}
+
+    Returns
+    -------
+    dict with keys: chunks_added, chunks_removed, source
+    """
+    chunks = chunk_document(document)
+    if not chunks:
+        return {"chunks_added": 0, "chunks_removed": 0, "source": document["source"]}
+
+    chroma = PersistentClient(path=DB_NAME)
+    collection = chroma.get_or_create_collection(collection_name)
+    source_path = document["source"]
+
+    # Embed new chunks first — if this fails, nothing has been deleted yet
+    texts = [c["page_content"] for c in chunks]
+    metas = [c["metadata"] for c in chunks]
+    ids = [_stable_chunk_id(source_path, i, t) for i, t in enumerate(texts)]
+    vectors = embed_in_batches(texts, batch_size=500)
+
+    # Remove previously uploaded chunks for this source only after embedding succeeds
+    try:
+        existing = collection.get(where={"source": source_path})
+        if existing["ids"]:
+            collection.delete(ids=existing["ids"])
+            removed = len(existing["ids"])
+        else:
+            removed = 0
+    except Exception:
+        removed = 0
+
+    collection.upsert(ids=ids, embeddings=vectors, documents=texts, metadatas=metas)
+
+    # Rebuild TF-IDF index — hold the lock for the entire read-modify-write
+    with _bm25_lock:
+        if BM25_PATH.exists():
+            with open(BM25_PATH, "rb") as f:
+                bm25_data = pickle.load(f)
+            all_texts: list = bm25_data["texts"]
+            all_metas: list = bm25_data["metadatas"]
+            combined = [(t, m) for t, m in zip(all_texts, all_metas) if m.get("source") != source_path]
+            all_texts = [x[0] for x in combined]
+            all_metas = [x[1] for x in combined]
+        else:
+            all_texts, all_metas = [], []
+
+        all_texts.extend(texts)
+        all_metas.extend(metas)
+
+        vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True)
+        matrix = vectorizer.fit_transform(all_texts)
+        with open(BM25_PATH, "wb") as f:
+            pickle.dump({"vectorizer": vectorizer, "matrix": matrix, "texts": all_texts, "metadatas": all_metas}, f)
+
+    from pro_implementation.answer import reload_bm25
+    reload_bm25()
+
+    return {"chunks_added": len(chunks), "chunks_removed": removed, "source": source_path}
 
 
 if __name__ == "__main__":

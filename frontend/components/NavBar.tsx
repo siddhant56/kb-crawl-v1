@@ -33,6 +33,14 @@ export function NavBar() {
 
       {/* Right: nav links + user info */}
       <div className="flex items-center gap-4">
+        {user?.upload_access && (
+          <Link
+            href="/upload"
+            className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            Upload Docs
+          </Link>
+        )}
         {user?.role === "super_admin" && (
           <Link
             href="/admin"

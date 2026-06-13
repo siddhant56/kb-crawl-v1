@@ -44,7 +44,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from pro_implementation.ingest import fetch_documents, create_chunks, create_embeddings
 from scraper import run_full_crawl, scrape_state, scrape_lock
-from auth_module import auth_router, admin_router, chat_router, create_tables, gradio_auth
+from auth_module import auth_router, admin_router, chat_router, upload_router, create_tables, gradio_auth
 
 KNOWLEDGE_BASE_PATH = Path(__file__).parent / "knowledge-base"
 
@@ -141,10 +141,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Mount all RBAC routes (/auth/*, /api/chat)
+# Mount all RBAC routes (/auth/*, /api/chat, /api/upload)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
+app.include_router(upload_router)
 
 
 # ---------------------------------------------------------------------------

@@ -100,6 +100,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
         role=user.role.value,
         email=user.email,
         status=user.status.value,
+        upload_access=user.upload_access,
     )
     return TokenResponse(access_token=token, user=UserPublic.model_validate(user))
 

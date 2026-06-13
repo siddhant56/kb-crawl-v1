@@ -39,6 +39,7 @@ class UserPublic(BaseModel):
     full_name: str
     role: UserRole
     status: UserStatus
+    upload_access: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -52,6 +53,7 @@ class UserAdmin(BaseModel):
     full_name: str
     role: UserRole
     status: UserStatus
+    upload_access: bool
     created_at: datetime
     approved_by_id: Optional[int]
     approved_at: Optional[datetime]
