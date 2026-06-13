@@ -1,9 +1,10 @@
 # Github's default gitignore for Python
-
+node_modules
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+.next
 
 # C extensions
 *.so
@@ -168,6 +169,10 @@ model_cache/
 # Ignore Chroma vector database
 vector_db/
 products_vectorstore/
+
+# Project databases — generated locally, never committed
+preprocessed_db/
+auth.db
 
 # And ignore any pickle files made during the course
 *.pkl

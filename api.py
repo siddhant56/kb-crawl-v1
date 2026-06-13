@@ -11,7 +11,24 @@ Endpoints:
 
   POST /api/pipeline/run          – scrape then ingest in one shot (background)
 
-  GET  /                          – Gradio chat UI (mounted)
+  -- Auth & RBAC (auth_module) --
+  POST /auth/register             – register a new user (status=pending)
+  POST /auth/login                – login, returns JWT
+  GET  /auth/me                   – current user profile
+  POST /auth/token/verify         – validate a token
+  POST /auth/admin/init           – bootstrap first super admin (one-time)
+  GET  /auth/admin/users          – list all users (super admin only)
+  PATCH /auth/admin/users/{id}/approve  – approve a user
+  PATCH /auth/admin/users/{id}/deny     – deny a user
+  PATCH /auth/admin/users/{id}/revoke   – revoke access
+  PATCH /auth/admin/users/{id}/role     – change role
+  DELETE /auth/admin/users/{id}         – delete a user
+  GET  /auth/admin/stats          – user count by status
+
+  POST /api/chat                  – protected RAG chat (Next.js / REST clients)
+  POST /api/chat/verify           – token + approval check for Next.js middleware
+
+  GET  /                          – Gradio chat UI (requires approved account login)
 """
 
 import os
@@ -27,6 +44,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from pro_implementation.ingest import fetch_documents, create_chunks, create_embeddings
 from scraper import run_full_crawl, scrape_state, scrape_lock
+from auth_module import auth_router, admin_router, chat_router, create_tables, gradio_auth
 
 KNOWLEDGE_BASE_PATH = Path(__file__).parent / "knowledge-base"
 
@@ -93,6 +111,7 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    create_tables()  # initialise auth DB tables on startup
     scheduler.add_job(
         perform_ingestion,
         trigger=CronTrigger(minute=0),
@@ -115,11 +134,17 @@ app = FastAPI(
     title="Radixweb Knowledge API",
     description=(
         "Scrape radixweb.com, categorise content into the knowledge-base, "
-        "and ingest it via the pro RAG pipeline."
+        "and ingest it via the pro RAG pipeline. "
+        "Includes RBAC auth: register, login, and super-admin user management."
     ),
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
+
+# Mount all RBAC routes (/auth/*, /api/chat)
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(chat_router)
 
 
 # ---------------------------------------------------------------------------
@@ -292,4 +317,10 @@ gradio_ui = gr.ChatInterface(
     title="Radixweb Expert Assistant",
     description="Hybrid RAG · BM25 + Semantic · Local Reranker",
 )
-app = gr.mount_gradio_app(app, gradio_ui, path="/")
+app = gr.mount_gradio_app(
+    app,
+    gradio_ui,
+    path="/",
+    auth=gradio_auth,
+    auth_message="Enter your approved Radixweb account email and password.",
+)
