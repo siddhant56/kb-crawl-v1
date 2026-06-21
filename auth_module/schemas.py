@@ -39,6 +39,7 @@ class UserPublic(BaseModel):
     full_name: str
     role: UserRole
     status: UserStatus
+    upload_access: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -52,6 +53,7 @@ class UserAdmin(BaseModel):
     full_name: str
     role: UserRole
     status: UserStatus
+    upload_access: bool
     created_at: datetime
     approved_by_id: Optional[int]
     approved_at: Optional[datetime]
@@ -128,6 +130,19 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: List[Any] = Field(default_factory=list)
+
+
+class ChatHistoryMessage(BaseModel):
+    id: int
+    role: str
+    content: str
+    turn_index: int
+
+    model_config = {"from_attributes": True}
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: List[ChatHistoryMessage]
 
 
 # ---------------------------------------------------------------------------

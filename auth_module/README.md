@@ -66,10 +66,10 @@ auth_module/
 
 ### Roles
 
-| Role | Description |
-|------|-------------|
-| `user` | Default role. Access Gradio UI and chatbot API after approval. |
-| `super_admin` | Manage all user accounts. Access everything a `user` can. |
+| Role          | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| `user`        | Default role. Access Gradio UI and chatbot API after approval. |
+| `super_admin` | Manage all user accounts. Access everything a `user` can.      |
 
 ### Status Flow
 
@@ -108,9 +108,9 @@ After first deployment, bootstrap the super admin account **once**:
 curl -X POST http://localhost:8000/auth/admin/init \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@yourcompany.com",
+    "email": "admin@radixweb.com",
     "full_name": "Super Admin",
-    "password": "StrongPassword123!"
+    "password": "Radixweb@123!"
   }'
 ```
 
@@ -123,6 +123,7 @@ This endpoint returns `409 Conflict` on any subsequent call, so it is safe to le
 ### Authentication
 
 #### `POST /auth/register`
+
 Create a new account (status = `pending`).
 
 ```bash
@@ -132,18 +133,20 @@ curl -X POST http://localhost:8000/auth/register \
 ```
 
 Response:
+
 ```json
 {
-  "id": 2,
-  "email": "user@example.com",
-  "full_name": "Jane Doe",
-  "role": "user",
-  "status": "pending",
-  "created_at": "2024-01-15T10:30:00"
+    "id": 2,
+    "email": "user@example.com",
+    "full_name": "Jane Doe",
+    "role": "user",
+    "status": "pending",
+    "created_at": "2024-01-15T10:30:00"
 }
 ```
 
 #### `POST /auth/login`
+
 Exchange credentials for a JWT. Only works for `approved` accounts.
 
 ```bash
@@ -153,6 +156,7 @@ curl -X POST http://localhost:8000/auth/login \
 ```
 
 Response:
+
 ```json
 {
   "access_token": "eyJhbGci...",
@@ -162,6 +166,7 @@ Response:
 ```
 
 #### `GET /auth/me`
+
 Get your own profile.
 
 ```bash
@@ -170,6 +175,7 @@ curl http://localhost:8000/auth/me \
 ```
 
 #### `POST /auth/token/verify`
+
 Validate a token — used by Next.js middleware.
 
 ```bash
@@ -184,6 +190,7 @@ curl -X POST http://localhost:8000/auth/token/verify \
 All admin endpoints require a super admin JWT.
 
 #### `GET /auth/admin/users`
+
 List all users (supports filtering and pagination).
 
 ```bash
@@ -197,9 +204,11 @@ curl "http://localhost:8000/auth/admin/users?skip=0&limit=20" \
 ```
 
 #### `GET /auth/admin/users/{user_id}`
+
 Get a specific user.
 
 #### `PATCH /auth/admin/users/{user_id}/approve`
+
 Grant access to a user.
 
 ```bash
@@ -208,6 +217,7 @@ curl -X PATCH http://localhost:8000/auth/admin/users/2/approve \
 ```
 
 #### `PATCH /auth/admin/users/{user_id}/deny`
+
 Deny a user. A reason is required.
 
 ```bash
@@ -218,9 +228,11 @@ curl -X PATCH http://localhost:8000/auth/admin/users/2/deny \
 ```
 
 #### `PATCH /auth/admin/users/{user_id}/revoke`
+
 Revoke access from a previously approved user.
 
 #### `PATCH /auth/admin/users/{user_id}/role`
+
 Change role (`user` ↔ `super_admin`).
 
 ```bash
@@ -231,9 +243,11 @@ curl -X PATCH http://localhost:8000/auth/admin/users/2/role \
 ```
 
 #### `DELETE /auth/admin/users/{user_id}`
+
 Permanently delete a user (not yourself, not another super admin).
 
 #### `GET /auth/admin/stats`
+
 Dashboard summary.
 
 ```bash
@@ -247,6 +261,7 @@ curl http://localhost:8000/auth/admin/stats \
 ### Chat (Next.js REST API)
 
 #### `POST /api/chat`
+
 Send a message to the RAG assistant. **Requires approved account.**
 
 ```bash
@@ -257,6 +272,7 @@ curl -X POST http://localhost:8000/api/chat \
 ```
 
 Response:
+
 ```json
 {
   "answer": "Radixweb offers software development services including...",
@@ -265,6 +281,7 @@ Response:
 ```
 
 #### `POST /api/chat/verify`
+
 Lightweight token + approval check. No body needed.
 
 ```bash
@@ -285,28 +302,28 @@ Returns `200` with user info if approved, `403` if pending/denied/revoked.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function login(email: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error((await res.json()).detail);
-  const data = await res.json();
-  // Store the token (e.g., httpOnly cookie via a /api/session route)
-  return data; // { access_token, token_type, user }
+    const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail);
+    const data = await res.json();
+    // Store the token (e.g., httpOnly cookie via a /api/session route)
+    return data; // { access_token, token_type, user }
 }
 
 export async function chat(token: string, message: string, history: any[]) {
-  const res = await fetch(`${API_BASE}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message, history }),
-  });
-  if (!res.ok) throw new Error((await res.json()).detail);
-  return res.json(); // { answer, sources }
+    const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message, history }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail);
+    return res.json(); // { answer, sources }
 }
 ```
 
@@ -321,19 +338,19 @@ const API_BASE = process.env.API_URL || "http://localhost:8000";
 const PROTECTED = ["/chat", "/dashboard"];
 
 export async function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname;
-  if (!PROTECTED.some((p) => path.startsWith(p))) return NextResponse.next();
+    const path = req.nextUrl.pathname;
+    if (!PROTECTED.some((p) => path.startsWith(p))) return NextResponse.next();
 
-  const token = req.cookies.get("access_token")?.value;
-  if (!token) return NextResponse.redirect(new URL("/login", req.url));
+    const token = req.cookies.get("access_token")?.value;
+    if (!token) return NextResponse.redirect(new URL("/login", req.url));
 
-  const check = await fetch(`${API_BASE}/api/chat/verify`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-  });
+    const check = await fetch(`${API_BASE}/api/chat/verify`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+    });
 
-  if (!check.ok) return NextResponse.redirect(new URL("/login", req.url));
-  return NextResponse.next();
+    if (!check.ok) return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.next();
 }
 ```
 
@@ -373,11 +390,11 @@ Update `NEXT_PUBLIC_API_URL` in your Next.js `.env.local` to point to the correc
 
 ## Security Notes
 
-| Concern | Mitigation |
-|---------|-----------|
-| JWT secret | Change `AUTH_JWT_SECRET` to a random 32+ char string before production |
-| Token expiry | Tokens expire after 24 h by default; reduce `AUTH_TOKEN_EXPIRE_MINUTES` for higher security |
+| Concern          | Mitigation                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| JWT secret       | Change `AUTH_JWT_SECRET` to a random 32+ char string before production                                                                  |
+| Token expiry     | Tokens expire after 24 h by default; reduce `AUTH_TOKEN_EXPIRE_MINUTES` for higher security                                             |
 | Token revocation | Tokens are DB-verified on every API call; revoking in DB immediately blocks new requests (Gradio sessions survive until the next login) |
-| CORS | `allow_origins=["*"]` in the standalone app — restrict to your frontend domain in production |
-| SQLite | Fine for small to medium deployments; switch `AUTH_DATABASE_URL` to PostgreSQL for production scale |
-| Password hashing | bcrypt with default cost factor (12 rounds) |
+| CORS             | `allow_origins=["*"]` in the standalone app — restrict to your frontend domain in production                                            |
+| SQLite           | Fine for small to medium deployments; switch `AUTH_DATABASE_URL` to PostgreSQL for production scale                                     |
+| Password hashing | bcrypt with default cost factor (12 rounds)                                                                                             |

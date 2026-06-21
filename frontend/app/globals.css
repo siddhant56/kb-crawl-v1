@@ -1,19 +1,49 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  html,
-  body {
-    @apply text-gray-900 antialiased;
+  html, body {
+    @apply antialiased;
+  }
+
+  /* Custom scrollbar — dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-600;
   }
 }
 
 @layer utilities {
-  /* Smooth scroll inside chat message list */
-  .scroll-smooth-chat {
-    scroll-behavior: smooth;
+  .gradient-brand {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  }
+
+  .gradient-brand-text {
+    background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass-card {
+    @apply bg-zinc-900/80 backdrop-blur-sm border border-zinc-800;
+  }
+
+  .input-dark {
+    @apply bg-zinc-900 border border-zinc-700 text-zinc-100 placeholder-zinc-600
+           focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500
+           transition-all duration-200 rounded-lg;
   }
 }

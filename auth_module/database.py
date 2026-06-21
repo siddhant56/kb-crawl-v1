@@ -31,9 +31,21 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def create_tables() -> None:
-    """Create all tables that don't exist yet. Safe to call multiple times."""
+    """Create all tables that don't exist yet and log their status. Safe to call multiple times."""
+    from sqlalchemy import inspect
     from auth_module.models import Base  # local import avoids circular deps at module load
+
+    existing = set(inspect(engine).get_table_names())
     Base.metadata.create_all(bind=engine)
+    after = set(inspect(engine).get_table_names())
+
+    for table in sorted(Base.metadata.tables):
+        status = "created" if table not in existing else "ok"
+        print(f"  [db] {table}: {status}")
+
+    missing = set(Base.metadata.tables) - after
+    if missing:
+        raise RuntimeError(f"[db] Tables failed to create: {missing}")
 
 
 def get_db() -> Generator[Session, None, None]:

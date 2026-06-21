@@ -1,4 +1,5 @@
 import pickle
+import threading
 import numpy as np
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,6 +14,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 load_dotenv(override=True)
+
+from pro_implementation.guardrails import OUTPUT_INSTRUCTIONS  # noqa: E402
 
 MODEL = "openai/gpt-4.1-nano"
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
@@ -30,6 +33,7 @@ openai = OpenAI()
 chroma = PersistentClient(path=DB_NAME)
 
 # BM25 index — loaded lazily; absent on a fresh deploy before first ingestion
+_bm25_lock = threading.Lock()
 _tfidf_vectorizer = None
 _tfidf_matrix = None
 _tfidf_texts: list = []
@@ -68,7 +72,7 @@ Knowledge Base extracts:
 
 Answer the user's question using only the Knowledge Base above. Be accurate, relevant and complete. \
 If you don't know the answer, say so.
-"""
+{output_instructions}"""
 
 
 class Result(BaseModel):
@@ -101,10 +105,11 @@ def reload_bm25() -> None:
         return
     with open(BM25_PATH, "rb") as f:
         _idx = pickle.load(f)
-    _tfidf_vectorizer = _idx["vectorizer"]
-    _tfidf_matrix = _idx["matrix"]
-    _tfidf_texts = _idx["texts"]
-    _tfidf_metas = _idx["metadatas"]
+    with _bm25_lock:
+        _tfidf_vectorizer = _idx["vectorizer"]
+        _tfidf_matrix = _idx["matrix"]
+        _tfidf_texts = _idx["texts"]
+        _tfidf_metas = _idx["metadatas"]
     print("[answer] BM25 index reloaded.")
 
 
@@ -120,13 +125,18 @@ def fetch_vector_results(query_text: str, n: int = RETRIEVAL_K) -> list[Result]:
 
 
 def fetch_tfidf_results(query_text: str, n: int = RETRIEVAL_K) -> list[Result]:
-    if _tfidf_vectorizer is None:
-        return []
-    query_vec = _tfidf_vectorizer.transform([query_text])
-    sims = cosine_similarity(query_vec, _tfidf_matrix).flatten()
+    with _bm25_lock:
+        if _tfidf_vectorizer is None:
+            return []
+        vectorizer = _tfidf_vectorizer
+        matrix = _tfidf_matrix
+        texts = _tfidf_texts
+        metas = _tfidf_metas
+    query_vec = vectorizer.transform([query_text])
+    sims = cosine_similarity(query_vec, matrix).flatten()
     top_indices = np.argsort(sims)[::-1][:n]
     return [
-        Result(page_content=_tfidf_texts[i], metadata=_tfidf_metas[i])
+        Result(page_content=texts[i], metadata=metas[i])
         for i in top_indices
         if sims[i] > 0
     ]
@@ -218,7 +228,7 @@ def make_rag_messages(question: str, chunks: list[Result]) -> list:
     # History is intentionally excluded — the KB context is the sole source of truth.
     # History is used only for query rewriting so follow-up questions still work.
     return [
-        {"role": "system", "content": SYSTEM_PROMPT.format(context=context)},
+        {"role": "system", "content": SYSTEM_PROMPT.format(context=context, output_instructions=OUTPUT_INSTRUCTIONS)},
         {"role": "user", "content": question},
     ]
 

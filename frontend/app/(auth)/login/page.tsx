@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authApi, extractError } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { ok, data, status } = await authApi.login(email.trim(), password);
+    const { ok, data } = await authApi.login(email.trim(), password);
     setLoading(false);
 
     if (!ok) {
@@ -25,10 +26,8 @@ export default function LoginPage() {
       return;
     }
 
-    // Cookie is set by the API route. Redirect based on status first, then role.
     const user = (data as { user: { status: string; role: string } }).user;
     if (user.status !== "approved") {
-      // pending / denied / revoked — pending page shows the correct per-status message
       router.push("/pending");
     } else if (user.role === "super_admin") {
       router.push("/admin");
@@ -38,24 +37,31 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
+      {/* Subtle radial glow behind the card */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-sm">
+        {/* Logo + headline */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl font-bold mx-auto mb-4">
-            C
+          <div className="flex justify-center mb-4">
+            <Logo size={44} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Sign in to your Company account
+          <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">
+            Welcome back
+          </h1>
+          <p className="text-zinc-500 text-sm mt-1.5">
+            Sign in to Company Expert
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          <form onSubmit={submit} className="space-y-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl shadow-black/40">
+          <form onSubmit={submit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Email
               </label>
               <input
@@ -63,13 +69,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="you@company.com"
+                className="w-full input-dark px-3.5 py-2.5 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Password
               </label>
               <input
@@ -78,12 +84,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full input-dark px-3.5 py-2.5 text-sm"
               />
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm text-red-400">
                 {error}
               </div>
             )}
@@ -91,7 +97,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full gradient-brand hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-opacity flex items-center justify-center gap-2 mt-1"
             >
               {loading ? (
                 <>
@@ -105,11 +111,11 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-zinc-600 mt-6">
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
           >
             Create one
           </Link>

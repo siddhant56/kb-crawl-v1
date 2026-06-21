@@ -39,12 +39,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Security
 from fastapi.security import APIKeyHeader
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-
 from pro_implementation.ingest import fetch_documents, create_chunks, create_embeddings
 from scraper import run_full_crawl, scrape_state, scrape_lock
-from auth_module import auth_router, admin_router, chat_router, create_tables, gradio_auth
+from auth_module import auth_router, admin_router, chat_router, upload_router, create_tables, gradio_auth
 
 KNOWLEDGE_BASE_PATH = Path(__file__).parent / "knowledge-base"
 
@@ -103,27 +100,15 @@ def perform_ingestion() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Scheduler (hourly auto-ingest)
+# Lifespan
 # ---------------------------------------------------------------------------
-
-scheduler = BackgroundScheduler()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()  # initialise auth DB tables on startup
-    scheduler.add_job(
-        perform_ingestion,
-        trigger=CronTrigger(minute=0),
-        id="hourly_ingestion",
-        name="Hourly Document Ingestion",
-        replace_existing=True,
-    )
-    scheduler.start()
-    print("Scheduler started — hourly ingestion configured.")
+    print("[startup] Verifying database tables...")
+    create_tables()
+    print("[startup] Database ready.")
     yield
-    scheduler.shutdown()
-    print("Scheduler stopped.")
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +126,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Mount all RBAC routes (/auth/*, /api/chat)
+# Mount all RBAC routes (/auth/*, /api/chat, /api/upload)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
+app.include_router(upload_router)
 
 
 # ---------------------------------------------------------------------------
