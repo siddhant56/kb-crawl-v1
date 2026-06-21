@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { authApi, extractError } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -35,33 +36,25 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-            <svg
-              className="w-8 h-8 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-600/5 rounded-full blur-3xl" />
+        </div>
+        <div className="relative w-full max-w-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Account created!
-          </h2>
-          <p className="text-gray-500 text-sm mb-6">
-            Your account is <strong>pending approval</strong>. A super admin
-            needs to approve it before you can sign in. Check back soon.
+          <h2 className="text-2xl font-bold text-zinc-50 mb-2 tracking-tight">Account created!</h2>
+          <p className="text-zinc-500 text-sm mb-8 leading-relaxed">
+            Your account is{" "}
+            <span className="text-amber-400 font-medium">pending approval</span>.
+            A super admin needs to approve it before you can sign in.
           </p>
           <Link
             href="/login"
-            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+            className="text-indigo-400 hover:text-indigo-300 font-medium text-sm transition-colors"
           >
             ← Back to sign in
           </Link>
@@ -71,24 +64,28 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-sm">
+        {/* Logo + headline */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl font-bold mx-auto mb-4">
-            C
+          <div className="flex justify-center mb-4">
+            <Logo size={44} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">Create account</h1>
+          <p className="text-zinc-500 text-sm mt-1.5">
             Request access to Company Expert
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          <form onSubmit={submit} className="space-y-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl shadow-black/40">
+          <form onSubmit={submit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Full name
               </label>
               <input
@@ -98,12 +95,12 @@ export default function RegisterPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Jane Doe"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full input-dark px-3.5 py-2.5 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Email
               </label>
               <input
@@ -111,15 +108,15 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                placeholder="you@company.com"
+                className="w-full input-dark px-3.5 py-2.5 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
                 Password{" "}
-                <span className="text-gray-400 font-normal">(min 8 chars)</span>
+                <span className="text-zinc-600 font-normal">(min 8 chars)</span>
               </label>
               <input
                 type="password"
@@ -128,12 +125,12 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full input-dark px-3.5 py-2.5 text-sm"
               />
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm text-red-400">
                 {error}
               </div>
             )}
@@ -141,7 +138,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full gradient-brand hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-opacity flex items-center justify-center gap-2 mt-1"
             >
               {loading ? (
                 <>
@@ -155,11 +152,11 @@ export default function RegisterPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-zinc-600 mt-6">
           Already have an account?{" "}
           <Link
             href="/login"
-            className="text-blue-600 hover:text-blue-700 font-medium"
+            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
           >
             Sign in
           </Link>

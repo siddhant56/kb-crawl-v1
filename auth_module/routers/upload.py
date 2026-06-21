@@ -21,18 +21,25 @@ POST /api/upload   — upload a document (multipart/form-data)
 GET  /api/upload/categories — list valid categories
 """
 
+import hashlib
 import io
 import re
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
+from auth_module.database import get_db
 from auth_module.dependencies import require_upload_access
-from auth_module.models import User
+from auth_module.models import CustomCategory, DocumentUpload, User
 from auth_module.sanitizer import sanitize
+
+# Lowercase letters/digits/hyphens, must start with a letter, max 50 chars
+_CATEGORY_RE = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
 
 router = APIRouter(prefix="/api/upload", tags=["Document Upload"])
 
@@ -117,12 +124,52 @@ def _to_markdown(raw_text: str, title: str) -> str:
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @router.get(
+    "/history",
+    summary="Upload audit trail",
+    description="Returns all uploaded documents with uploader info. Super admins see everyone's uploads; users with upload_access see only their own.",
+)
+def upload_history(
+    current_user: User = Depends(require_upload_access),
+    db: Session = Depends(get_db),
+) -> list:
+    from auth_module.models import UserRole
+    if current_user.role == UserRole.SUPER_ADMIN:
+        records = db.query(DocumentUpload).order_by(DocumentUpload.uploaded_at.desc()).all()
+    else:
+        records = (
+            db.query(DocumentUpload)
+            .filter(DocumentUpload.user_id == current_user.id)
+            .order_by(DocumentUpload.uploaded_at.desc())
+            .all()
+        )
+
+    # Resolve uploader emails in one query
+    user_ids = {r.user_id for r in records}
+    users = {u.id: u.email for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+
+    return [
+        {
+            "id": r.id,
+            "filename": r.filename,
+            "saved_as": r.saved_as,
+            "category": r.category,
+            "chunks_added": r.chunks_added,
+            "uploaded_by": users.get(r.user_id, f"user#{r.user_id}"),
+            "uploaded_at": r.uploaded_at.isoformat(),
+        }
+        for r in records
+    ]
+
+
+@router.get(
     "/categories",
     summary="List valid document categories",
-    description="Returns the list of categories a user can assign to an uploaded document.",
+    description="Returns built-in categories plus any custom categories users have created.",
 )
-def list_categories() -> dict:
-    return {"categories": VALID_CATEGORIES}
+def list_categories(db: Session = Depends(get_db)) -> dict:
+    custom = [r.name for r in db.query(CustomCategory.name).order_by(CustomCategory.name).all()]
+    merged = VALID_CATEGORIES + [c for c in custom if c not in VALID_CATEGORIES]
+    return {"categories": merged}
 
 
 @router.post(
@@ -140,13 +187,27 @@ def upload_document(
     category: str = Form(..., description=f"Category: one of {VALID_CATEGORIES}"),
     title: Optional[str] = Form(None, description="Optional title override (defaults to filename)"),
     current_user: User = Depends(require_upload_access),
+    db: Session = Depends(get_db),
 ) -> JSONResponse:
-    # ── Validate category ────────────────────────────────────────────────────
+    # ── Validate / register category ─────────────────────────────────────────
     if category not in VALID_CATEGORIES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid category '{category}'. Must be one of: {', '.join(VALID_CATEGORIES)}",
-        )
+        if not _CATEGORY_RE.match(category):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Invalid category name '{category}'. "
+                    "Use only lowercase letters, digits, and hyphens (e.g. 'my-topic'). "
+                    "Must start with a letter, max 50 characters."
+                ),
+            )
+        # Persist new category so it appears for all users going forward
+        if not db.query(CustomCategory).filter(CustomCategory.name == category).first():
+            db.add(CustomCategory(
+                name=category,
+                created_by_id=current_user.id,
+                created_at=datetime.now(timezone.utc),
+            ))
+            db.commit()
 
     # ── Validate file extension ──────────────────────────────────────────────
     original_name = file.filename or "document"
@@ -194,12 +255,29 @@ def upload_document(
     # ── Sanitize ─────────────────────────────────────────────────────────────
     clean_markdown, report = sanitize(markdown)
 
+    # ── Deduplicate by content hash ───────────────────────────────────────────
+    content_hash = hashlib.sha256(clean_markdown.encode()).hexdigest()
+    existing = db.query(DocumentUpload).filter(DocumentUpload.content_hash == content_hash).first()
+    if existing:
+        uploader = db.query(User).filter(User.id == existing.user_id).first()
+        uploader_label = uploader.email if uploader else f"user #{existing.user_id}"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"This document is already in the knowledge base. "
+                f"Uploaded by {uploader_label} on "
+                f"{existing.uploaded_at.strftime('%Y-%m-%d')} "
+                f"as '{existing.filename}' in category '{existing.category}'."
+            ),
+        )
+
     # ── Persist sanitized markdown to knowledge-base/ ────────────────────────
-    # Prefix with "user-" to avoid collisions with crawler-generated files
     category_dir = KNOWLEDGE_BASE_PATH / category
     category_dir.mkdir(parents=True, exist_ok=True)
 
-    slug = "user-" + _slugify(Path(original_name).stem)
+    # Include user ID so two users uploading the same filename don't collide.
+    # Same user re-uploading the same file will still overwrite their own version.
+    slug = f"u{current_user.id}-" + _slugify(Path(original_name).stem)
     md_path = category_dir / f"{slug}.md"
     md_path.write_text(clean_markdown, encoding="utf-8")
 
@@ -212,12 +290,23 @@ def upload_document(
             "text": clean_markdown,
         })
     except Exception as exc:
-        # Roll back the file write so knowledge-base stays consistent
         md_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Embedding failed: {exc}",
         )
+
+    # ── Save audit record ─────────────────────────────────────────────────────
+    db.add(DocumentUpload(
+        user_id=current_user.id,
+        filename=original_name,
+        saved_as=str(md_path.relative_to(KNOWLEDGE_BASE_PATH.parent)),
+        category=category,
+        content_hash=content_hash,
+        chunks_added=result["chunks_added"],
+        uploaded_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

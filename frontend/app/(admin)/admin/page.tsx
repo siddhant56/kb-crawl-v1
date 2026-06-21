@@ -6,17 +6,15 @@ import type { AdminStats, UserAdmin, UserStatus } from "@/lib/types";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 const STATUS_STYLES: Record<UserStatus, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  approved: "bg-green-100 text-green-800",
-  denied: "bg-red-100 text-red-800",
-  revoked: "bg-gray-200 text-gray-700",
+  pending:  "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  denied:   "bg-red-500/10 text-red-400 border-red-500/20",
+  revoked:  "bg-zinc-700/40 text-zinc-500 border-zinc-700",
 };
 
 function StatusBadge({ status }: { status: UserStatus }) {
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status]}`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize border ${STATUS_STYLES[status]}`}>
       {status}
     </span>
   );
@@ -25,19 +23,27 @@ function StatusBadge({ status }: { status: UserStatus }) {
 // ─── Stats cards ──────────────────────────────────────────────────────────────
 function StatsBar({ stats }: { stats: AdminStats | null }) {
   const cards = [
-    { label: "Total", value: stats?.total ?? "—", color: "text-gray-900" },
-    { label: "Pending", value: stats?.by_status.pending ?? 0, color: "text-amber-600" },
-    { label: "Approved", value: stats?.by_status.approved ?? 0, color: "text-green-600" },
-    { label: "Denied", value: stats?.by_status.denied ?? 0, color: "text-red-600" },
-    { label: "Revoked", value: stats?.by_status.revoked ?? 0, color: "text-gray-500" },
+    { label: "Total users", value: stats?.total ?? "—", accent: "indigo" },
+    { label: "Pending", value: stats?.by_status.pending ?? 0, accent: "amber" },
+    { label: "Approved", value: stats?.by_status.approved ?? 0, accent: "emerald" },
+    { label: "Denied", value: stats?.by_status.denied ?? 0, accent: "red" },
+    { label: "Revoked", value: stats?.by_status.revoked ?? 0, accent: "zinc" },
   ];
 
+  const accent: Record<string, string> = {
+    indigo: "text-indigo-400",
+    amber:  "text-amber-400",
+    emerald:"text-emerald-400",
+    red:    "text-red-400",
+    zinc:   "text-zinc-500",
+  };
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
       {cards.map((c) => (
-        <div key={c.label} className="bg-white rounded-xl border border-gray-200 px-5 py-4">
-          <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-          <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+        <div key={c.label} className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4">
+          <p className="text-xs text-zinc-600 mb-1">{c.label}</p>
+          <p className={`text-2xl font-bold ${accent[c.accent]}`}>{c.value}</p>
         </div>
       ))}
     </div>
@@ -45,53 +51,38 @@ function StatsBar({ stats }: { stats: AdminStats | null }) {
 }
 
 // ─── Deny modal ───────────────────────────────────────────────────────────────
-function DenyModal({
-  user,
-  onConfirm,
-  onCancel,
-}: {
-  user: UserAdmin;
-  onConfirm: (reason: string) => void;
-  onCancel: () => void;
-}) {
+function DenyModal({ user, onConfirm, onCancel }: { user: UserAdmin; onConfirm: (r: string) => void; onCancel: () => void }) {
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   const confirm = () => {
-    if (reason.trim().length < 5) {
-      setErr("Please provide a reason of at least 5 characters.");
-      return;
-    }
+    if (reason.trim().length < 5) { setErr("Please provide a reason of at least 5 characters."); return; }
     onConfirm(reason.trim());
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-          Deny access for {user.full_name}
-        </h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Provide a reason. This is stored on the user record.
-        </p>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/60 w-full max-w-md p-6">
+        <h3 className="text-base font-semibold text-zinc-100 mb-1">Deny access for {user.full_name}</h3>
+        <p className="text-sm text-zinc-500 mb-4">Provide a reason. This is stored on the user record.</p>
         <textarea
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="e.g. Unrecognised email domain, not an employee…"
-          className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+          className="w-full input-dark px-3.5 py-2.5 text-sm resize-none"
         />
-        {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+        {err && <p className="text-sm text-red-400 mt-2">{err}</p>}
         <div className="flex gap-3 mt-5 justify-end">
           <button
             onClick={onCancel}
-            className="text-sm text-gray-600 hover:text-gray-900 font-medium px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="text-sm text-zinc-400 hover:text-zinc-200 font-medium px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={confirm}
-            className="text-sm bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+            className="text-sm bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium px-4 py-2 rounded-lg transition-colors"
           >
             Deny access
           </button>
@@ -101,65 +92,70 @@ function DenyModal({
   );
 }
 
+// ─── Action button ────────────────────────────────────────────────────────────
+function ActionBtn({ label, onClick, variant = "default" }: { label: string; onClick: () => void; variant?: string }) {
+  const styles: Record<string, string> = {
+    default:  "border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800",
+    approve:  "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
+    deny:     "border border-red-500/30 text-red-400 hover:bg-red-500/10",
+    revoke:   "border border-amber-500/30 text-amber-400 hover:bg-amber-500/10",
+    promote:  "border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10",
+    demote:   "border border-zinc-600 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500",
+    upload:   "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10",
+    "revoke-upload": "border border-orange-500/30 text-orange-400 hover:bg-orange-500/10",
+    delete:   "text-red-500 hover:text-red-300 hover:bg-red-500/10",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${styles[variant] ?? styles.default}`}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ─── User row ─────────────────────────────────────────────────────────────────
-function UserRow({
-  user,
-  currentUserId,
-  onAction,
-}: {
-  user: UserAdmin;
-  currentUserId?: number;
-  onAction: (action: string, user: UserAdmin) => void;
-}) {
+function UserRow({ user, currentUserId, onAction }: { user: UserAdmin; currentUserId?: number; onAction: (a: string, u: UserAdmin) => void }) {
   const isSelf = user.id === currentUserId;
 
   const joined = new Date(user.created_at).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+    month: "short", day: "numeric", year: "numeric",
   });
 
-  const initials = user.full_name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = user.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+    <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
       {/* User info */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-            <span className="text-xs font-bold text-blue-700">{initials}</span>
+          <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-white">{initials}</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-zinc-200">
               {user.full_name}
-              {isSelf && (
-                <span className="ml-1.5 text-xs text-gray-400">(you)</span>
-              )}
+              {isSelf && <span className="ml-1.5 text-xs text-zinc-600">(you)</span>}
             </p>
-            <p className="text-xs text-gray-500">{user.email}</p>
+            <p className="text-xs text-zinc-500">{user.email}</p>
           </div>
         </div>
       </td>
 
-      {/* Role + upload badge */}
-      <td className="px-4 py-3">
+      {/* Role */}
+      <td className="px-4 py-3.5">
         <div className="flex flex-col gap-1">
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded w-fit ${
-              user.role === "super_admin"
-                ? "bg-purple-100 text-purple-800"
-                : "bg-gray-100 text-gray-700"
-            }`}
-          >
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded border w-fit ${
+            user.role === "super_admin"
+              ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+              : "bg-zinc-800 text-zinc-500 border-zinc-700"
+          }`}>
             {user.role === "super_admin" ? "Super Admin" : "User"}
           </span>
           {user.upload_access && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded w-fit bg-emerald-100 text-emerald-800">
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded border w-fit bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
               Upload
             </span>
           )}
@@ -167,89 +163,47 @@ function UserRow({
       </td>
 
       {/* Status */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3.5">
         <StatusBadge status={user.status} />
         {user.status === "denied" && user.denial_reason && (
-          <p className="text-xs text-gray-400 mt-1 max-w-[200px] truncate" title={user.denial_reason}>
+          <p className="text-xs text-zinc-600 mt-1 max-w-[180px] truncate" title={user.denial_reason}>
             {user.denial_reason}
           </p>
         )}
       </td>
 
       {/* Joined */}
-      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-        {joined}
-      </td>
+      <td className="px-4 py-3.5 text-xs text-zinc-600 whitespace-nowrap">{joined}</td>
 
       {/* Actions */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3.5">
         {isSelf ? (
-          <span className="text-xs text-gray-400">—</span>
+          <span className="text-xs text-zinc-700">—</span>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {user.status !== "approved" && user.role !== "super_admin" && (
-              <button
-                onClick={() => onAction("approve", user)}
-                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Approve
-              </button>
+              <ActionBtn label="Approve" variant="approve" onClick={() => onAction("approve", user)} />
             )}
             {user.status === "pending" && user.role !== "super_admin" && (
-              <button
-                onClick={() => onAction("deny", user)}
-                className="text-xs bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Deny
-              </button>
+              <ActionBtn label="Deny" variant="deny" onClick={() => onAction("deny", user)} />
             )}
             {user.status === "approved" && user.role !== "super_admin" && (
-              <button
-                onClick={() => onAction("revoke", user)}
-                className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Revoke
-              </button>
+              <ActionBtn label="Revoke" variant="revoke" onClick={() => onAction("revoke", user)} />
             )}
             {user.role !== "super_admin" && (
-              <button
-                onClick={() => onAction("promote", user)}
-                className="text-xs border border-purple-300 hover:bg-purple-50 text-purple-700 px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Make Admin
-              </button>
+              <ActionBtn label="Make Admin" variant="promote" onClick={() => onAction("promote", user)} />
             )}
             {user.role === "super_admin" && (
-              <button
-                onClick={() => onAction("demote", user)}
-                className="text-xs border border-gray-300 hover:bg-gray-50 text-gray-600 px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Remove Admin
-              </button>
+              <ActionBtn label="Remove Admin" variant="demote" onClick={() => onAction("demote", user)} />
             )}
             {user.status === "approved" && user.role !== "super_admin" && !user.upload_access && (
-              <button
-                onClick={() => onAction("grant-upload", user)}
-                className="text-xs border border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Grant Upload
-              </button>
+              <ActionBtn label="Grant Upload" variant="upload" onClick={() => onAction("grant-upload", user)} />
             )}
             {user.status === "approved" && user.role !== "super_admin" && user.upload_access && (
-              <button
-                onClick={() => onAction("revoke-upload", user)}
-                className="text-xs border border-orange-300 hover:bg-orange-50 text-orange-700 px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Revoke Upload
-              </button>
+              <ActionBtn label="Revoke Upload" variant="revoke-upload" onClick={() => onAction("revoke-upload", user)} />
             )}
             {(user.status === "denied" || user.status === "revoked") && user.role !== "super_admin" && (
-              <button
-                onClick={() => onAction("delete", user)}
-                className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1 rounded-lg font-medium transition-colors"
-              >
-                Delete
-              </button>
+              <ActionBtn label="Delete" variant="delete" onClick={() => onAction("delete", user)} />
             )}
           </div>
         )}
@@ -258,7 +212,7 @@ function UserRow({
   );
 }
 
-// ─── Main admin page ──────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
 type TabFilter = "all" | UserStatus;
 
 export default function AdminPage() {
@@ -274,9 +228,7 @@ export default function AdminPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [statsRes, usersRes, meRes] = await Promise.all([
-      adminApi.getStats(),
-      adminApi.getUsers({ limit: 200 }),
-      authApi.me(),
+      adminApi.getStats(), adminApi.getUsers({ limit: 200 }), authApi.me(),
     ]);
     if (statsRes.ok) setStats(statsRes.data);
     if (usersRes.ok) setUsers(usersRes.data);
@@ -284,9 +236,7 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const showSuccess = (msg: string) => {
     setSuccessMsg(msg);
@@ -295,45 +245,24 @@ export default function AdminPage() {
 
   const handleAction = async (action: string, user: UserAdmin) => {
     setActionError(null);
-
-    if (action === "deny") {
-      setDenyTarget(user);
-      return;
-    }
+    if (action === "deny") { setDenyTarget(user); return; }
 
     let result;
     switch (action) {
-      case "approve":
-        result = await adminApi.approve(user.id);
-        break;
-      case "revoke":
-        result = await adminApi.revoke(user.id);
-        break;
-      case "promote":
-        result = await adminApi.changeRole(user.id, "super_admin");
-        break;
-      case "demote":
-        result = await adminApi.changeRole(user.id, "user");
-        break;
-      case "grant-upload":
-        result = await adminApi.grantUpload(user.id);
-        break;
-      case "revoke-upload":
-        result = await adminApi.revokeUpload(user.id);
-        break;
+      case "approve":      result = await adminApi.approve(user.id); break;
+      case "revoke":       result = await adminApi.revoke(user.id); break;
+      case "promote":      result = await adminApi.changeRole(user.id, "super_admin"); break;
+      case "demote":       result = await adminApi.changeRole(user.id, "user"); break;
+      case "grant-upload": result = await adminApi.grantUpload(user.id); break;
+      case "revoke-upload":result = await adminApi.revokeUpload(user.id); break;
       case "delete":
         if (!confirm(`Permanently delete ${user.full_name}? This cannot be undone.`)) return;
         result = await adminApi.deleteUser(user.id);
         break;
-      default:
-        return;
+      default: return;
     }
 
-    if (!result.ok) {
-      setActionError(extractError(result.data));
-      return;
-    }
-
+    if (!result.ok) { setActionError(extractError(result.data)); return; }
     showSuccess(`${user.full_name} — ${action} successful.`);
     fetchData();
   };
@@ -342,10 +271,7 @@ export default function AdminPage() {
     if (!denyTarget) return;
     const result = await adminApi.deny(denyTarget.id, reason);
     setDenyTarget(null);
-    if (!result.ok) {
-      setActionError(extractError(result.data));
-      return;
-    }
+    if (!result.ok) { setActionError(extractError(result.data)); return; }
     showSuccess(`${denyTarget.full_name} — access denied.`);
     fetchData();
   };
@@ -358,44 +284,38 @@ export default function AdminPage() {
     { key: "revoked", label: "Revoked" },
   ];
 
-  const filteredUsers =
-    tab === "all" ? users : users.filter((u) => u.status === tab);
+  const filteredUsers = tab === "all" ? users : users.filter((u) => u.status === tab);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Approve, deny, or revoke access to the Company Expert chatbot.
+        <h1 className="text-2xl font-bold text-zinc-50 tracking-tight">User Management</h1>
+        <p className="text-zinc-500 text-sm mt-1">
+          Approve, deny, or revoke access to Company Expert.
         </p>
       </div>
 
       <StatsBar stats={stats} />
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-white border border-gray-200 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 mb-4 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
         {TABS.map((t) => {
-          const count =
-            t.key === "all"
-              ? stats?.total ?? 0
-              : (stats?.by_status[t.key] ?? 0);
+          const count = t.key === "all" ? stats?.total ?? 0 : (stats?.by_status[t.key] ?? 0);
           return (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`text-sm px-3.5 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
                 tab === t.key
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  ? "gradient-brand text-white shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
               }`}
             >
               {t.label}
               {count > 0 && (
-                <span
-                  className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    tab === t.key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  tab === t.key ? "bg-white/20 text-white" : "bg-zinc-800 text-zinc-500"
+                }`}>
                   {count}
                 </span>
               )}
@@ -406,37 +326,34 @@ export default function AdminPage() {
 
       {/* Toast messages */}
       {successMsg && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3 rounded-xl">
+        <div className="mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl">
           ✓ {successMsg}
         </div>
       )}
       {actionError && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl flex justify-between">
+        <div className="mb-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex justify-between">
           <span>{actionError}</span>
-          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+          <button onClick={() => setActionError(null)} className="text-red-500 hover:text-red-300 ml-4">✕</button>
         </div>
       )}
 
-      {/* User table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Table */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <span className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+            <span className="w-6 h-6 border-2 border-zinc-700 border-t-indigo-500 rounded-full animate-spin" />
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-zinc-600 text-sm">
             No {tab !== "all" ? tab : ""} users found.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="border-b border-zinc-800">
                   {["User", "Role", "Status", "Joined", "Actions"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                    >
+                    <th key={h} className="px-4 py-3 text-[11px] font-semibold text-zinc-600 uppercase tracking-wider">
                       {h}
                     </th>
                   ))}
@@ -444,12 +361,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {filteredUsers.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    currentUserId={currentUserId}
-                    onAction={handleAction}
-                  />
+                  <UserRow key={u.id} user={u} currentUserId={currentUserId} onAction={handleAction} />
                 ))}
               </tbody>
             </table>
@@ -457,18 +369,13 @@ export default function AdminPage() {
         )}
       </div>
 
-      <p className="text-xs text-gray-400 mt-4 text-center">
+      <p className="text-xs text-zinc-700 mt-4 text-center">
         {filteredUsers.length} user{filteredUsers.length !== 1 ? "s" : ""}{" "}
         {tab !== "all" ? `with status "${tab}"` : "total"}
       </p>
 
-      {/* Deny modal */}
       {denyTarget && (
-        <DenyModal
-          user={denyTarget}
-          onConfirm={handleDenyConfirm}
-          onCancel={() => setDenyTarget(null)}
-        />
+        <DenyModal user={denyTarget} onConfirm={handleDenyConfirm} onCancel={() => setDenyTarget(null)} />
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import { NavBar } from "@/components/NavBar";
  */
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-screen flex flex-col overflow-hidden bg-zinc-950">
       <NavBar />
       <div className="flex-1 overflow-hidden">{children}</div>
     </div>

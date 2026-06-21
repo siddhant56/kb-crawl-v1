@@ -15,6 +15,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 load_dotenv(override=True)
 
+from pro_implementation.guardrails import OUTPUT_INSTRUCTIONS  # noqa: E402
+
 MODEL = "openai/gpt-4.1-nano"
 DB_NAME = str(Path(__file__).parent.parent / "preprocessed_db")
 BM25_PATH = Path(__file__).parent.parent / "bm25_index.pkl"
@@ -70,7 +72,7 @@ Knowledge Base extracts:
 
 Answer the user's question using only the Knowledge Base above. Be accurate, relevant and complete. \
 If you don't know the answer, say so.
-"""
+{output_instructions}"""
 
 
 class Result(BaseModel):
@@ -226,7 +228,7 @@ def make_rag_messages(question: str, chunks: list[Result]) -> list:
     # History is intentionally excluded — the KB context is the sole source of truth.
     # History is used only for query rewriting so follow-up questions still work.
     return [
-        {"role": "system", "content": SYSTEM_PROMPT.format(context=context)},
+        {"role": "system", "content": SYSTEM_PROMPT.format(context=context, output_instructions=OUTPUT_INSTRUCTIONS)},
         {"role": "user", "content": question},
     ]
 

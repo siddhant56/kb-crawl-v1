@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import type { UserPublic } from "@/lib/types";
+import { Logo } from "./Logo";
 
 export function NavBar() {
   const [user, setUser] = useState<UserPublic | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     authApi.me().then(({ ok, data }) => {
@@ -21,42 +23,48 @@ export function NavBar() {
     router.push("/login");
   };
 
+  const navLink = (href: string, label: string) => {
+    const active = pathname === href;
+    return (
+      <Link
+        href={href}
+        className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+          active
+            ? "bg-indigo-500/10 text-indigo-400"
+            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+        }`}
+      >
+        {label}
+      </Link>
+    );
+  };
+
   return (
-    <header className="h-14 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 z-10">
+    <header className="h-14 bg-zinc-900 border-b border-zinc-800 px-5 flex items-center justify-between shrink-0 z-10">
       {/* Left: brand */}
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
-          C
-        </div>
-        <span className="font-semibold text-gray-900">Company Expert</span>
+      <div className="flex items-center gap-2.5">
+        <Logo size={28} />
+        <span className="font-semibold text-zinc-50 tracking-tight">
+          Company Expert
+        </span>
       </div>
 
-      {/* Right: nav links + user info */}
-      <div className="flex items-center gap-4">
-        {user?.upload_access && (
-          <Link
-            href="/upload"
-            className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-          >
-            Upload Docs
-          </Link>
-        )}
-        {user?.role === "super_admin" && (
-          <Link
-            href="/admin"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Admin Panel
-          </Link>
-        )}
+      {/* Right: nav + user */}
+      <div className="flex items-center gap-1">
+        {navLink("/chat", "Chat")}
+        {user?.upload_access && navLink("/upload", "Upload")}
+        {user?.role === "super_admin" && navLink("/admin", "Admin")}
+
+        <div className="w-px h-4 bg-zinc-700 mx-2" />
+
         {user && (
-          <span className="text-sm text-gray-500 hidden sm:block">
+          <span className="text-sm text-zinc-500 hidden sm:block mr-3 truncate max-w-[180px]">
             {user.full_name}
           </span>
         )}
         <button
           onClick={logout}
-          className="text-sm text-gray-600 hover:text-gray-900 font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="text-sm text-zinc-400 hover:text-zinc-100 font-medium px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
         >
           Sign out
         </button>

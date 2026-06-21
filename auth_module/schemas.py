@@ -132,6 +132,19 @@ class ChatResponse(BaseModel):
     sources: List[Any] = Field(default_factory=list)
 
 
+class ChatHistoryMessage(BaseModel):
+    id: int
+    role: str
+    content: str
+    turn_index: int
+
+    model_config = {"from_attributes": True}
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: List[ChatHistoryMessage]
+
+
 # ---------------------------------------------------------------------------
 # Misc
 # ---------------------------------------------------------------------------
