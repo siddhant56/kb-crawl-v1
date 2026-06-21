@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { chatApi, extractError } from "@/lib/api";
 import type { ConversationMessage, Source } from "@/lib/types";
 
@@ -9,14 +11,68 @@ function parseSource(source: Source) {
   const parts = source.metadata.source.replace(/\\/g, "/").split("/");
   const filename = parts[parts.length - 1]?.replace(".md", "") ?? "source";
   const category = source.metadata.type ?? "document";
-  const snippet =
-    source.page_content.slice(0, 200) +
-    (source.page_content.length > 200 ? "…" : "");
-  return { filename, category, snippet };
+  return { filename, category };
 }
 
-// ─── Source accordion ─────────────────────────────────────────────────────────
-function SourcesPanel({ sources }: { sources: Source[] }) {
+// ─── Right side panel ─────────────────────────────────────────────────────────
+function SourcePanel({
+  source,
+  onClose,
+}: {
+  source: Source;
+  onClose: () => void;
+}) {
+  const { filename, category } = parseSource(source);
+
+  return (
+    <div className="h-full flex flex-col bg-white border-l border-gray-200">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900 truncate capitalize">
+            {filename.replace(/-/g, " ")}
+          </h3>
+          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium capitalize">
+            {category}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="prose prose-sm max-w-none prose-p:my-2 prose-headings:my-3 prose-pre:bg-gray-100 prose-pre:rounded-lg text-gray-700">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {source.page_content}
+          </ReactMarkdown>
+        </div>
+      </div>
+
+      {/* Footer path */}
+      <div className="px-4 py-2 border-t border-gray-100 shrink-0">
+        <p className="text-xs text-gray-400 truncate" title={source.metadata.source}>
+          {source.metadata.source}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Source chips under a message ─────────────────────────────────────────────
+function SourcesPanel({
+  sources,
+  onSourceClick,
+}: {
+  sources: Source[];
+  onSourceClick: (source: Source) => void;
+}) {
   const [open, setOpen] = useState(false);
   if (!sources.length) return null;
 
@@ -41,24 +97,25 @@ function SourcesPanel({ sources }: { sources: Source[] }) {
       </button>
 
       {open && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           {sources.map((s, i) => {
-            const { filename, category, snippet } = parseSource(s);
+            const { filename, category } = parseSource(s);
             return (
-              <div
+              <button
                 key={i}
-                className="bg-gray-50 border border-gray-200 rounded-lg p-3"
+                onClick={() => onSourceClick(s)}
+                className="flex items-center gap-1.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg px-3 py-2 text-left transition-colors group"
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs font-semibold text-gray-700 capitalize">
+                <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-700 group-hover:text-blue-700 truncate capitalize">
                     {filename.replace(/-/g, " ")}
-                  </span>
-                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium capitalize">
-                    {category}
-                  </span>
+                  </p>
+                  <p className="text-[10px] text-gray-400 capitalize">{category}</p>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed">{snippet}</p>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -68,7 +125,13 @@ function SourcesPanel({ sources }: { sources: Source[] }) {
 }
 
 // ─── Message bubble ───────────────────────────────────────────────────────────
-function MessageBubble({ msg }: { msg: ConversationMessage & { sources?: Source[] } }) {
+function MessageBubble({
+  msg,
+  onSourceClick,
+}: {
+  msg: ConversationMessage & { sources?: Source[] };
+  onSourceClick: (source: Source) => void;
+}) {
   const isUser = msg.role === "user";
 
   if (isUser) {
@@ -84,22 +147,17 @@ function MessageBubble({ msg }: { msg: ConversationMessage & { sources?: Source[
   return (
     <div className="flex justify-start">
       <div className="flex gap-3 max-w-[80%]">
-        {/* Avatar */}
         <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
           <span className="text-xs font-bold text-blue-700">R</span>
         </div>
         <div>
-          <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-sm text-sm leading-relaxed text-gray-800 shadow-sm">
-            {/* Render newlines as line breaks */}
-            {msg.content.split("\n").map((line, i) => (
-              <span key={i}>
-                {line}
-                {i < msg.content.split("\n").length - 1 && <br />}
-              </span>
-            ))}
+          <div className="bg-white border border-gray-200 px-4 py-3 rounded-2xl rounded-bl-sm text-sm leading-relaxed text-gray-800 shadow-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:rounded-lg prose-code:text-pink-600 prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-600">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {msg.content}
+            </ReactMarkdown>
           </div>
           {"sources" in msg && msg.sources && (
-            <SourcesPanel sources={msg.sources} />
+            <SourcesPanel sources={msg.sources} onSourceClick={onSourceClick} />
           )}
         </div>
       </div>
@@ -151,7 +209,6 @@ function WelcomeScreen() {
             key={q}
             className="text-left text-xs bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 px-4 py-3 rounded-xl text-gray-600 hover:text-gray-900 transition-all"
             onClick={() => {
-              // Dispatch a custom event that the input listens to
               window.dispatchEvent(
                 new CustomEvent("chat:suggest", { detail: q })
               );
@@ -173,15 +230,14 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeSource, setActiveSource] = useState<Source | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Listen for suggested questions from the welcome screen
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail;
@@ -199,10 +255,7 @@ export default function ChatPage() {
     setInput("");
     setError(null);
 
-    // Snapshot history BEFORE adding the new user message
     const history = messages.map(({ role, content }) => ({ role, content }));
-
-    // Optimistically add the user message
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
@@ -230,116 +283,103 @@ export default function ChatPage() {
   const clearChat = () => {
     setMessages([]);
     setError(null);
+    setActiveSource(null);
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Message area */}
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 && !loading ? (
-          <WelcomeScreen />
-        ) : (
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
-            {messages.map((msg, i) => (
-              <MessageBubble key={i} msg={msg} />
-            ))}
-            {loading && <TypingIndicator />}
-            <div ref={bottomRef} />
+    <div className="h-full flex">
+      {/* Chat area */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all ${activeSource ? "mr-0" : ""}`}>
+        {/* Message area */}
+        <div className="flex-1 overflow-y-auto">
+          {messages.length === 0 && !loading ? (
+            <WelcomeScreen />
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+              {messages.map((msg, i) => (
+                <MessageBubble key={i} msg={msg} onSourceClick={setActiveSource} />
+              ))}
+              {loading && <TypingIndicator />}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="mx-4 mb-2">
+            <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-red-700">{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 hover:text-red-600 ml-4 shrink-0"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Error banner */}
-      {error && (
-        <div className="mx-4 mb-2">
-          <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
-            <span className="text-sm text-red-700">{error}</span>
+        {/* Input bar */}
+        <div className="border-t border-gray-200 bg-white px-4 py-4 shrink-0">
+          <div className="max-w-3xl mx-auto flex gap-3 items-end">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
+              rows={1}
+              disabled={loading}
+              className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 transition max-h-40 overflow-y-auto leading-relaxed"
+              style={{ height: "auto", minHeight: "44px" }}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+              }}
+            />
+
+            {messages.length > 0 && (
+              <button
+                onClick={clearChat}
+                disabled={loading}
+                title="Clear conversation"
+                className="p-2.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50 shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+
             <button
-              onClick={() => setError(null)}
-              className="text-red-400 hover:text-red-600 ml-4 shrink-0"
+              onClick={send}
+              disabled={loading || !input.trim()}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white disabled:text-gray-400 p-2.5 rounded-xl transition-colors shrink-0"
             >
-              ✕
+              {loading ? (
+                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin block" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              )}
             </button>
           </div>
+
+          <p className="text-center text-xs text-gray-400 mt-2">
+            Answers are generated from the company knowledge base · Click a source to view its content
+          </p>
+        </div>
+      </div>
+
+      {/* Right-side source panel */}
+      {activeSource && (
+        <div className="w-[400px] shrink-0 h-full">
+          <SourcePanel source={activeSource} onClose={() => setActiveSource(null)} />
         </div>
       )}
-
-      {/* Input bar */}
-      <div className="border-t border-gray-200 bg-white px-4 py-4 shrink-0">
-        <div className="max-w-3xl mx-auto flex gap-3 items-end">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
-            rows={1}
-            disabled={loading}
-            className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 transition max-h-40 overflow-y-auto leading-relaxed"
-            style={{
-              height: "auto",
-              minHeight: "44px",
-            }}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-            }}
-          />
-
-          {messages.length > 0 && (
-            <button
-              onClick={clearChat}
-              disabled={loading}
-              title="Clear conversation"
-              className="p-2.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50 shrink-0"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          )}
-
-          <button
-            onClick={send}
-            disabled={loading || !input.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:cursor-not-allowed text-white disabled:text-gray-400 p-2.5 rounded-xl transition-colors shrink-0"
-          >
-            {loading ? (
-              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin block" />
-            ) : (
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        <p className="text-center text-xs text-gray-400 mt-2">
-          Answers are generated from the company knowledge base · Sources are
-          shown below each response
-        </p>
-      </div>
     </div>
   );
 }
